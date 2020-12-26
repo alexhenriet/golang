@@ -16,12 +16,12 @@ func main() {
 		os.Exit(1)
 	}
 	searchTxt := argv[1]
-	rplcTxt := argv[2]
+	replacementTxt := argv[2]
 	searchDir := argv[3]
 	// Testing parameters
 	dir, err := os.Stat(searchDir)
 	if err != nil || !dir.IsDir() {
-		fmt.Printf("Error: %s must be a readable directory\r\n", searchDir)
+		fmt.Printf("Error: %s must be a readable directory\n", searchDir)
 		os.Exit(1)
 	}
 	// Iterating all files in directory and subdirectories and storing names in fileList
@@ -29,7 +29,7 @@ func main() {
 	// Using fileList
 	for _, file := range fileList {
 		if fileContains(file, searchTxt) {
-			linesModified := fileReplaceTxt(file, searchTxt, rplcTxt)
+			linesModified := fileReplaceTxt(file, searchTxt, replacementTxt)
 			fmt.Printf("%s : %d lines modified\n", file, linesModified)
 		}
 	}
@@ -47,7 +47,7 @@ func collectFiles(searchDir string) []string {
 	return fileList
 }
 
-func fileContains(path string, searchText string) bool {
+func fileContains(path string, searchTxt string) bool {
 	f, err := os.Open(path)
 	if err != nil {
 		return false
@@ -55,14 +55,14 @@ func fileContains(path string, searchText string) bool {
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		if strings.Contains(scanner.Text(), searchText) {
+		if strings.Contains(scanner.Text(), searchTxt) {
 			return true
 		}
 	}
 	return false
 }
 
-func fileReplaceTxt(path string, searchText string, replaceText string) int {
+func fileReplaceTxt(path string, searchTxt string, replacementTxt string) int {
 	// Opening original file
 	f1, err := os.Open(path)
 	if err != nil {
@@ -85,8 +85,8 @@ func fileReplaceTxt(path string, searchText string, replaceText string) int {
 	bufr2 := bufio.NewWriter(f2)
 	for {
 		line, err := bufr.ReadString('\n')
-		if strings.Contains(line, searchText) {
-			line = strings.Replace(line, searchText, replaceText, -1)
+		if strings.Contains(line, searchTxt) {
+			line = strings.Replace(line, searchTxt, replacementTxt, -1)
 			count++
 		}
 		bufr2.WriteString(line)
