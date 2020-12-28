@@ -1,0 +1,12 @@
+{
+	"Bot": {
+		"Nickname": "gobot",
+		"Ident": "gobot",
+		"Realname": "Golang IRC Bot"
+	},
+	"Server": {
+		"Host": "192.168.1.4",
+        "Port": "6667",
+        "Channel": "#dev"
+	}
+}
