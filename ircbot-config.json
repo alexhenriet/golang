@@ -1,12 +1,15 @@
 {
 	"Bot": {
-		"Nickname": "gobot",
+		"Nickname": "Godget",
 		"Ident": "gobot",
-		"Realname": "Golang IRC Bot"
+		"Realname": "Golang IRC Bot v0.8.1 by Setsuna-"
 	},
 	"Server": {
 		"Host": "192.168.1.4",
         "Port": "6667",
-        "Channel": "#dev"
-	}
+        "Channel": "#loligrub"
+	},
+	"LogFile": "gobot.log",
+	"Owner": "Setsuna-",
+	"Debug": true
 }
