@@ -5,11 +5,11 @@
 		"Realname": "Golang IRC Bot v0.8.1 by Setsuna-"
 	},
 	"Server": {
-		"Host": "192.168.1.4",
+		"Host": "irc.freenode.net",
         "Port": "6667",
         "Channel": "#loligrub"
 	},
-	"LogFile": "gobot.log",
+	"LogFile": "godget.log",
 	"Owner": "Setsuna-",
-	"Debug": true
+	"Debug": false
 }
