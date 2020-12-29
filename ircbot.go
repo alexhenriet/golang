@@ -220,7 +220,7 @@ func safeDownload(url string) string {
 	if err != nil {
 		return ""
 	}
-	if resp.Header.Get("Content-Type") != "text/html" {
+	if !strings.Contains(resp.Header.Get("Content-Type"), "html") {
 		return ""
 	}
 	defer resp.Body.Close()
