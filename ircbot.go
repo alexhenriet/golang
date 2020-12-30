@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -27,9 +28,11 @@ type Config struct {
 		Port    string
 		Channel string
 	}
-	LogFile string
-	Owner   string
-	Debug   bool
+	LogFile    string
+	Owner      string
+	Debug      bool
+	DistrosURL string
+	DetailsURL string
 }
 
 // Message struct
@@ -50,6 +53,8 @@ var currentNickname string
 func main() {
 	config := readConfig("ircbot-config.json")
 	log := openLog(config.LogFile)
+	loadDistributions(config.DistrosURL)
+	fmt.Printf("%d distributions loaded\n", len(distributions))
 	log.Put(fmt.Sprintf("Connecting to %v", config.Server.Host+":"+config.Server.Port))
 	conn, err := net.Dial("tcp", config.Server.Host+":"+config.Server.Port)
 	if err != nil {
@@ -154,6 +159,49 @@ func handleRawMessage(conn net.Conn, log Log, config Config, rawMessage string) 
 			for url, title := range urls {
 				send(conn, log, "PRIVMSG "+message.To+" :["+url+"] "+title)
 			}
+			return
+		}
+		if strings.HasPrefix(message.Text, "?os") {
+			search := strings.TrimSpace(strings.Join(strings.Split(message.Text, " ")[1:], " "))
+			if len(search) < 3 {
+				send(conn, log, "PRIVMSG "+message.To+" :"+"Syntaxe: ?os string[3:]")
+				return
+			}
+			results := searchDistribution(search)
+			values := getMapValues(results)
+			var answer string
+			if len(values) == 0 {
+				answer = "Aucune correspondance trouvée"
+			} else if len(values) > 20 {
+				answer = fmt.Sprintf("%d correspondance(s) : %s", len(values), "Pas plus de 20 résultats affichés à la fois")
+			} else {
+				sort.Strings(values)
+				answer = fmt.Sprintf("%d correspondance(s) : %s", len(values), strings.Join(values, ", "))
+			}
+			send(conn, log, "PRIVMSG "+message.To+" :"+answer)
+			return
+		}
+		if strings.HasPrefix(message.Text, "!os") {
+			search := strings.TrimSpace(strings.Join(strings.Split(message.Text, " ")[1:], " "))
+			if len(search) < 3 {
+				send(conn, log, "PRIVMSG "+message.To+" :"+"Syntaxe: !os string[3:]")
+				return
+			}
+			key := getMapKey(distributions, search)
+			var answer string
+			if len(key) == 0 {
+				answer = "Aucune correspondance trouvée"
+			} else {
+				details := getDetails(config.DetailsURL, search, key)
+				if len(details.osName) == 0 {
+					answer = "Impossible de récupérer les informations"
+				} else {
+					answer = fmt.Sprintf("\u0002[%s]\u000F %s (base %s) - origine: %s - statut: %s - \u001F%s\u000F",
+						details.osName, details.osType, details.osBased, details.osOrigin, details.osStatus, details.osHomepage)
+				}
+			}
+			send(conn, log, "PRIVMSG "+message.To+" :"+answer)
+			return
 		}
 	}
 }
