@@ -9,7 +9,7 @@
         "Port": "6667",
         "Channel": "#loligrub"
 	},
-	"LogFile": "gobot.log",
+	"LogFile": "godget.log",
 	"Owner": "Setsuna-",
 	"Debug": false,
 	"DistrosURL": "",
