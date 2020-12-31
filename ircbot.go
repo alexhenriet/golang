@@ -2,8 +2,6 @@ package main
 
 import (
 	"bufio"
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -12,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -52,32 +49,21 @@ type Log struct {
 	fp *os.File
 }
 
-// Details struct
-type Details struct {
-	osName     string
-	osType     string
-	osBased    string
-	osOrigin   string
-	osStatus   string
-	osHomepage string
-}
-
 var currentNickname string
-
-var distributions = make(map[string]string)
 
 func main() {
 	config := readConfig("ircbot-config.json")
+
 	log := openLog(config.LogFile)
-	loadDistributions(config.DistrosURL)
-	fmt.Printf("%d distributions loaded\n", len(distributions))
 	log.Put(fmt.Sprintf("Connecting to %v", config.Server.Host+":"+config.Server.Port))
+
 	conn, err := net.Dial("tcp", config.Server.Host+":"+config.Server.Port)
 	if err != nil {
 		log.Put(err.Error())
 		panic(err)
 	}
-	connect(conn, log, config)
+
+	register(conn, log, config)
 	for {
 		message, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
@@ -114,7 +100,7 @@ func readConfig(filename string) Config {
 	return Config
 }
 
-func connect(conn net.Conn, log Log, config Config) {
+func register(conn net.Conn, log Log, config Config) {
 	currentNickname = config.Bot.Nickname
 	send(conn, log, fmt.Sprintf("USER %s 0 * :%s", config.Bot.Ident, config.Bot.Realname))
 	send(conn, log, fmt.Sprintf("NICK %s", currentNickname))
@@ -175,48 +161,6 @@ func handleRawMessage(conn net.Conn, log Log, config Config, rawMessage string) 
 			for url, title := range urls {
 				send(conn, log, "PRIVMSG "+message.To+" :["+url+"] "+title)
 			}
-			return
-		}
-		if strings.HasPrefix(message.Text, "?os") {
-			search := strings.TrimSpace(strings.Join(strings.Split(message.Text, " ")[1:], " "))
-			if len(search) < 3 {
-				send(conn, log, "PRIVMSG "+message.To+" :"+"Syntaxe: ?os string[3:]")
-				return
-			}
-			results := searchDistribution(search)
-			values := getMapValues(results)
-			var answer string
-			if len(values) == 0 {
-				answer = "Aucune correspondance trouvée"
-			} else if len(values) > 20 {
-				answer = fmt.Sprintf("%d correspondance(s) : %s", len(values), "Pas plus de 20 résultats affichés à la fois")
-			} else {
-				sort.Strings(values)
-				answer = fmt.Sprintf("%d correspondance(s) : %s", len(values), strings.Join(values, ", "))
-			}
-			send(conn, log, "PRIVMSG "+message.To+" :"+answer)
-			return
-		}
-		if strings.HasPrefix(message.Text, "!os") {
-			search := strings.TrimSpace(strings.Join(strings.Split(message.Text, " ")[1:], " "))
-			if len(search) < 3 {
-				send(conn, log, "PRIVMSG "+message.To+" :"+"Syntaxe: !os string[3:]")
-				return
-			}
-			key := getMapKey(distributions, search)
-			var answer string
-			if len(key) == 0 {
-				answer = "Aucune correspondance trouvée"
-			} else {
-				details := getDetails(config.DetailsURL, search, key)
-				if len(details.osName) == 0 {
-					answer = "Impossible de récupérer les informations"
-				} else {
-					answer = fmt.Sprintf("\u0002[%s]\u000F %s (base %s) - origine: %s - statut: %s - \u001F%s\u000F",
-						details.osName, details.osType, details.osBased, details.osOrigin, details.osStatus, details.osHomepage)
-				}
-			}
-			send(conn, log, "PRIVMSG "+message.To+" :"+answer)
 			return
 		}
 	}
@@ -320,112 +264,4 @@ func getMapKey(strMap map[string]string, search string) string {
 		}
 	}
 	return ""
-}
-
-func searchDistribution(search string) map[string]string {
-	results := make(map[string]string)
-	for key, name := range distributions {
-		if strings.Contains(strings.ToLower(name), strings.ToLower(search)) {
-			results[key] = name
-		}
-	}
-	return results
-}
-
-func loadDistributions(url string) {
-
-	bodyStr := downloadCache(url)
-	re := regexp.MustCompile(`(?i)(?:<b>[\d]+. <a href=")(.+?)(?:">)(.+?)(?:</a>)`)
-	matches := re.FindAllStringSubmatch(bodyStr, -1)
-	for _, match := range matches {
-		distributions[match[1]] = match[2]
-	}
-}
-
-func getDetails(url string, name string, key string) Details {
-	var details Details
-	bodyStr := downloadCache(url + key)
-	if bodyStr == "" {
-		return details
-	}
-	details.osName = name
-
-	re := regexp.MustCompile(`<b>Type d'OS:</b> <a href=".+?">(.+?)</a>`)
-	match := re.FindStringSubmatch(bodyStr)
-	if len(match) > 1 {
-		details.osType = match[1]
-	}
-
-	re = regexp.MustCompile(`<b>Basée sur:</b> (.+?)<br />`)
-	match = re.FindStringSubmatch(bodyStr)
-	if len(match) > 1 {
-		dirty := match[1]
-		re2 := regexp.MustCompile(`<.+?>`)
-		clean := re2.ReplaceAllString(dirty, "")
-		details.osBased = clean
-	}
-
-	re = regexp.MustCompile(`<b>Origine:</b> <a href=".+?">(.+?)</a>`)
-	match = re.FindStringSubmatch(bodyStr)
-	if len(match) > 1 {
-		details.osOrigin = match[1]
-	}
-
-	re = regexp.MustCompile(`<b>Statut:</b> <font.+?>(.+?)</font>`)
-	match = re.FindStringSubmatch(bodyStr)
-	if len(match) > 1 {
-		details.osStatus = match[1]
-	}
-
-	re = regexp.MustCompile(`(?m)<tr class="Background">
-    <th class="Info">Home Page</th>
-    <td class="Info"><a href=".+?">(.+?)</a></td>
-  </tr>`)
-	match = re.FindStringSubmatch(bodyStr)
-	if len(match) > 1 {
-		details.osHomepage = match[1]
-	}
-
-	return details
-}
-
-func getMD5Hash(text string) string {
-	hash := md5.Sum([]byte(text))
-	return hex.EncodeToString(hash[:])
-}
-
-func downloadCache(url string) string {
-	cacheDir := "cache/"
-	_ = os.Mkdir(cacheDir, 0644)
-	cacheFile := cacheDir + getMD5Hash(url) + ".cache.txt"
-	data, err := ioutil.ReadFile(cacheFile)
-	if err == nil {
-		return string(data) // return cached data
-	}
-	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Set("User-Agent", getRandomUserAgent())
-	var client http.Client
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Printf("%s\n", err.Error())
-		return ""
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf("%s\n", err.Error())
-		return ""
-	}
-	_ = ioutil.WriteFile(cacheFile, body, 0644)
-	return string(body)
-}
-
-func getRandomUserAgent() string {
-	var agents = []string{
-		"Mozilla/5.0 (X11; Linux x86_64; rv:83.0) Gecko/20100101 Firefox/83.0",
-		"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36",
-		"Mozilla/5.0 (X11; U; Linux amd64; rv:5.0) Gecko/20100101 Firefox/81.0 (Debian)",
-	}
-	rand.Seed(time.Now().UnixNano())
-	return agents[rand.Intn(len(agents))]
 }

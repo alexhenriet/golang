@@ -11,7 +11,5 @@
 	},
 	"LogFile": "godget.log",
 	"Owner": "Setsuna-",
-	"Debug": false,
-	"DistrosURL": "",
-	"DetailsURL": ""
+	"Debug": false
 }
